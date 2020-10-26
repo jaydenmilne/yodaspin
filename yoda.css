@@ -1,0 +1,17 @@
+#yoda {
+    width: 25%;
+    height: auto;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    /* bring your own prefixes */
+    transform: translate(-50%, -50%) rotate(90deg);
+}
+
+#outer-div {
+    text-align: center;
+}
+
+#counter {
+    
+}
