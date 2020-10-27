@@ -12,9 +12,9 @@ const DATES_OF_INTEREST = [
 ]
 
 const SONGS = [
-    new Audio("sound/babyyoda.webm"),
-    new Audio("sound/rap.webm"),
-    new Audio("sound/theme.webm")
+    new Audio("sound/babyyoda.mp3"),
+    new Audio("sound/rap.mp3"),
+    new Audio("sound/theme.mp3")
 ]
 
 const YODA = document.getElementById("yoda");
