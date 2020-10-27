@@ -69,7 +69,7 @@ function getNextDoi() {
 
 function rotateYoda() {
     YODA.style.transform = "translate(-50%, -50%) rotate(" + rotationAngle.toString() + "deg)";
-    rotationAngle = (rotationAngle + 2 );
+    rotationAngle = (rotationAngle + 4 );
 
     if (rotationAngle % 360 != rotationAngle) {
         ++rotations;
@@ -117,4 +117,4 @@ if (TARGET_DATE != -1) {
     let clockInterval = setInterval(updateClock, 10);
 }
 
-let rotateInterval = setInterval(rotateYoda, 16)
+let rotateInterval = setInterval(rotateYoda, 32)
