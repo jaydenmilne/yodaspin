@@ -20,7 +20,9 @@
     flex-direction: column;
     align-items: center;
 }
-
+#music {
+    font-size: 25pt;
+}
 body {
     background-color: black;
     font-family: 'Staatliches', cursive;
