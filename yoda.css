@@ -44,7 +44,7 @@ body {
 }
 
 #countdown {
-    font-size: 50pt;
+    font-size: 30pt;
     visibility: hidden;
     font-family: 'Overpass Mono', monospace;
     padding-bottom: 0px;
