@@ -40,6 +40,14 @@ function lpad(str) {
     return str;
 }
 
+function initializeSongCallbacks() {
+    SONGS.forEach( (song) => {
+        song.addEventListener("ended", () => {
+            setTimeout(playRandomSong, getRandomInt(1000, 15000));
+        });
+    });
+}
+
 function playRandomSong() {
     let song = getRandomInt(0, SONGS.length);
     while (song == lastPlayed) {
@@ -47,11 +55,9 @@ function playRandomSong() {
     }
     lastPlayed = song;
     SONGS[song].play();
+
     console.debug(`playing song ${song}`)
 
-    SONGS[song].addEventListener("ended", () => {
-        setTimeout(playRandomSong, getRandomInt(1000, 10000));
-    })
 }
 
 function getNextDoi() {
@@ -118,3 +124,4 @@ if (TARGET_DATE != -1) {
 }
 
 let rotateInterval = setInterval(rotateYoda, 32)
+initializeSongCallbacks()
