@@ -7,11 +7,13 @@ import hmac
 import sys
 import os
 import json
+import atexit
+from flask_cors import CORS
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
-
+CORS(app)
 VERSION = "1"
 
 # Security related stuff
@@ -38,10 +40,15 @@ EXPECTED_TIME_BETWEEN_UPDATES_MS = SPINS_BETWEEN_UPDATES * TIME_FOR_ONE_SPIN_MS
 EXPECTED_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_MS / 1000
 
 
+def make_dicts(cursor, row):
+    return dict((cursor.description[idx][0], value)
+                for idx, value in enumerate(row))
+
 def get_db():
     db = getattr(g, "_database", None)
     if db is None:
         db = g._database = sqlite3.connect(DATABASE)
+    db.row_factory = make_dicts
     return db
 
 
@@ -216,6 +223,7 @@ def updateleaderboard():
     # this was the minimum value when this table was generated
     # do 80% of this value to account for a client that has a stale copy of
     # the high score list (due to caching)
+    # todo: could we just add an INC index on spins?
     minimum = int(cur.execute("SELECT min FROM minimum").fetchone()[0] * 0.8)
 
     # todo: race condition between MINIMUM and updating the high score list/database file
@@ -244,16 +252,17 @@ def updateleaderboard():
     return response
 
 def get_top_five():
-    cur = get_db().cursor()
-    return cur.execute("SELECT id, name, spins FROM highscores ORDER BY spins DESC LIMIT 5;").fetchall()
+    db = sqlite3.connect(DATABASE)
+    db.row_factory = make_dicts
+    cur = db.cursor()
+    result = cur.execute("SELECT id, name, spins FROM highscores ORDER BY spins DESC LIMIT 5;").fetchall()
+    db.close()
+    return result
 
-# TODO: debug gate this
 if app.debug:
-
     @app.route(f"/v{VERSION}/debugleaderboard", methods=["GET"])
     def debugleaderboard():
-        write_leaderboard()
-        return jsonify(get_top_five())
+        return jsonify({"leaderboard": get_top_five()})
 
 def write_leaderboard():
     # todo: we need to update the record instead of always inserting
@@ -261,26 +270,37 @@ def write_leaderboard():
     # time between intervals
     top_5 = get_top_five()
     with open(HIGHSCORE_FILE, 'w') as f:
-        f.write(json.dumps(top_5))
+        f.write(json.dumps({"leaderboard":top_5}))
     
     # update the lowest high score
-    db = get_db()
-    db.execute("BEGIN TRANSACTION;")
+    db = sqlite3.connect(DATABASE)
+    cur = db.cursor()
+    cur.execute("BEGIN TRANSACTION;")
     
+    lowest_highscore = int(top_5[-1]["spins"])
+
     try:
-        db.execute("DELETE FROM minimum;")
-        db.execute("INSERT INTO minimum (min) VALUES (?);", (top_5[-1][2]))
-        db.execute("COMMIT")
+        cur.execute("DELETE FROM minimum;")
+        cur.execute("INSERT INTO minimum (min) VALUES (?);", (lowest_highscore,))
+        cur.execute("COMMIT;")
+        db.commit()
     except sqlite3.DatabaseError as e:
-        db.execute("ROLLBACK")
+        cur.execute("ROLLBACK;")
         print("UH OH")
+        raise e
+    finally:
+        db.close()
     
 
-""" if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-  sched = BackgroundScheduler()
-  sched.add_interval_job(test_scheduler, minutes=1)
-  sched.start()
+if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    sched = BackgroundScheduler()
+    sched.add_job(
+        func=write_leaderboard, 
+        trigger="interval",
+        minutes=1
+    )
+    sched.start()
 
 # Shut down the scheduler when exiting the app
-atexit.register(lambda: scheduler.shutdown())
- """
+atexit.register(lambda: sched.shutdown())
+ 

@@ -20,6 +20,20 @@
     flex-direction: column;
     align-items: center;
 }
+
+#overlay-div {
+    position: fixed;
+    text-align: center;
+    width:100%;
+    height:100%;
+    top:0px;
+    left:0px;
+    z-index:1001;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 #music {
     font-size: 25pt;
 }
@@ -38,6 +52,8 @@ body {
     padding-bottom: 0px;
     max-width: 50%;
     margin-top: 2%;
+    border-radius: 5px;
+
 }
 
 #messages {
@@ -72,4 +88,28 @@ body {
 .bottom-feeder {
     margin-left: 10px;
     color: #333333;
+}
+
+#leaderboard {
+    background-color: #333333;
+    padding: 15px;
+    border-radius: 5px;
+    opacity: 30%;
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    align-self: center;
+    margin-bottom: 10px;
+    visibility: hidden;
+}
+
+#leaderboard-table {
+    visibility: collapse;
+}
+
+#leaderboard-label {
+    font-weight: bold;
+    font-size: 14pt;
+    padding: 0;
+    margin: 0;
 }

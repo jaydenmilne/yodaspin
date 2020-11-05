@@ -17,15 +17,36 @@ const SONGS = [
     new Audio("sound/theme.mp3")
 ]
 
+const LEADERBOARD_UPDATE_INTERVAL_MS = 1234;
+
 const YODA = document.getElementById("yoda");
 const COUNTER = document.getElementById("counter");
 const MESSAGES = document.getElementById("messages");
 const COUNTDOWN = document.getElementById("countdown");
 const TARGET_DATE = getNextDoi();
+const LEADERBOARD = document.getElementById("leaderboard");
+const LEADERBOARD_TABLE = document.getElementById("leaderboard-table");
+
+const LEADER_1 = document.getElementById("leader-1");
+const LEADER_2 = document.getElementById("leader-2");
+const LEADER_3 = document.getElementById("leader-3");
+const LEADER_4 = document.getElementById("leader-4");
+const LEADER_5 = document.getElementById("leader-5");
+const LEADERS = [LEADER_1, LEADER_2, LEADER_3, LEADER_4, LEADER_5];
+
+const LEADERBOARD_URL = "http://localhost:5000/v1/debugleaderboard"
 
 let rotationAngle = 0;
 let rotations = 0;
 let lastPlayed = -1;
+let leaderboardVisible = false;
+let leaderboardButtonVisible = false;
+let leaders = null;
+
+// Values from the server
+let lastTimestamp = null;
+let lastToken = null;
+let id = null;
 
 function getRandomInt(min, max) {
     min = Math.ceil(min);
@@ -116,6 +137,60 @@ document.body.addEventListener("touch", () => {
         playRandomSong();
     }
 });
+
+function toggleLeaderboard() {
+    leaderboardVisible = !leaderboardVisible;
+
+    if (leaderboardVisible) {
+        LEADERBOARD.style.opacity = "100%";
+        LEADERBOARD_TABLE.style.visibility = "visible";
+    } else {
+        LEADERBOARD.style.opacity = "30%";
+        LEADERBOARD_TABLE.style.visibility = "collapse";
+    }
+
+}
+
+function updateHighscores() {
+    fetch(LEADERBOARD_URL, {mode: 'cors'}).then(
+        response => {
+            if (response.status != 200) {
+                console.error("Failed to hit highscore backend!")
+                console.error(response)
+            }
+            return response.json();
+        }
+    ).then( response => {
+        let leaders = response["leaderboard"];
+        let highscores = response["leaderboard"];
+
+        if (!leaderboardButtonVisible) {
+            LEADERBOARD.style.visibility = "visible";
+        }
+
+        let i = 0;
+        for ( ; i < highscores.length; ++i) {
+            let row = LEADERS[i];
+            row.cells[0].innerText = i + 1;
+            row.cells[1].innerText = highscores[i]["name"];
+            row.cells[2].innerText = highscores[i]["spins"];
+        }
+
+        // hide extra rows
+        while (i < 5) {
+            for (let j = 0; j < 3; ++j) {
+                LEADERS[i].cells[j].innerText = "";
+            }
+            ++i;
+        }
+    })
+}
+
+LEADERBOARD.addEventListener("touch", toggleLeaderboard);
+LEADERBOARD.addEventListener("click", toggleLeaderboard);
+
+updateHighscores()
+let highscoreInterval = setInterval(updateHighscores, LEADERBOARD_UPDATE_INTERVAL_MS);
 
 if (TARGET_DATE != -1) {
     updateClock();
