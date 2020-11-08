@@ -8,6 +8,7 @@ import sys
 import os
 import json
 import atexit
+import math
 from flask_cors import CORS
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -31,18 +32,19 @@ except ModuleNotFoundError as e:
 # The following constants must be kept in sync with the client
 DEGREES_PER_INTERVAL = 4
 SPIN_TIMER_INTERVAL_MS = 32
-SPINS_BETWEEN_UPDATES = 31
+SPINS_BETWEEN_UPDATES = 13
 MINIMUM_INITIAL_SPINS_FOR_REGISTRATION = SPINS_BETWEEN_UPDATES
 MAXIMUM_INITIAL_SPINS_FOR_REGISTRATION = 2 * SPINS_BETWEEN_UPDATES
 
 TIME_FOR_ONE_SPIN_MS = (360 / DEGREES_PER_INTERVAL) * 32
 EXPECTED_TIME_BETWEEN_UPDATES_MS = SPINS_BETWEEN_UPDATES * TIME_FOR_ONE_SPIN_MS
 EXPECTED_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_MS / 1000
+MAXIMUM_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_S * 5
 
 
 def make_dicts(cursor, row):
-    return dict((cursor.description[idx][0], value)
-                for idx, value in enumerate(row))
+    return dict((cursor.description[idx][0], value) for idx, value in enumerate(row))
+
 
 def get_db():
     db = getattr(g, "_database", None)
@@ -121,9 +123,10 @@ def get_secret_hash(timestamp, addr, client_id, spins):
 @app.route(f"/v{VERSION}/register", methods=["POST"])
 def register():
     sanity_checks()
-
-    # reject if there are more than 4 active connections from this IP address
-    # (sorry people behind NAT)
+    body = request.json
+    if "spins" not in body or type(body["spins"]) != int:
+        abort(400, "Learn to code")
+    spins = int(body["spins"])
 
     # we return to the client an HMAC of
     # (1) their IP
@@ -131,16 +134,11 @@ def register():
     # (3) a uuid we generate
     # (4) the current number of spins (bounded)
     # The client then uses this has hash as a token when they go to do an update
-    # The server saves no state until a request to update has been sent. The server
-    # then validates the token, inserts a record in the DB, and the user is "registered"
+    # The server saves no state until the client decides its on the leaderboard
+    # and starts hitting the updateleaderboard endpoint instead of the update endpoint
     addr = get_ip_from_request()
     timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
     id = uuid.uuid4()
-    body = request.json
-
-    if "spins" not in body:
-        abort(400, "Learn to code")
-    spins = int(body["spins"])
 
     if (
         spins < MINIMUM_INITIAL_SPINS_FOR_REGISTRATION
@@ -157,32 +155,43 @@ def register():
 def update():
     # sanity checks
     sanity_checks()
-
     body = request.json
 
     # quick and dirty schema validation
     if (
         "id" not in body
+        or "previous-spins" not in body
         or "spins" not in body
         or "token" not in body
         or "timestamp" not in body
     ):
         abort(400, "Learn to code")
 
-    id = uuid.UUID(str(body["id"]))
-    spins_from_client = int(body["spins"])
-    old_timestamp = int(body["timestamp"])
+    previous_spins = body["previous-spins"]
+    spins = body["spins"]
+    old_timestamp = body["timestamp"]
+    id = body["id"]
+    token = body["token"]
 
-    if old_timestamp < 0:
-        abort(422, "Nice try buddy")
+    if (
+        type(previous_spins) != int
+        or type(old_timestamp) != int
+        or type(spins) != int
+        or type(token) != str
+        or type(id) != str
+    ):
+        abort(400, "That doesn't go there")
+
+    id = uuid.UUID(id)
+    token = bytearray.fromhex(token)
 
     addr = get_ip_from_request()
-    token = bytearray.fromhex(body["token"])
+
     calculated_token = get_secret_hash(
         old_timestamp,
         bytes(addr, "ascii"),
         id.bytes,
-        spins_from_client - SPINS_BETWEEN_UPDATES,
+        previous_spins,
     )
 
     if not hmac.compare_digest(calculated_token, token):
@@ -190,15 +199,35 @@ def update():
 
     timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
 
-    # todo: if early, increment the new timestamp
-    if abs(timestamp - EXPECTED_TIME_BETWEEN_UPDATES_S - old_timestamp) >= 1 and False:
-        abort(403, "Timing incorrect :(")
+    # the soonest they are allowed to check in again
+    # earliest_checkin = old_timestamp + EXPECTED_TIME_BETWEEN_UPDATES_S
+
+    # the latest after their last token was issued they can check in again
+    latest_checkin = old_timestamp + MAXIMUM_TIME_BETWEEN_UPDATES_S
+
+    # if timestamp < earliest_checkin:
+    #    abort(403, f"Too soon ({timestamp} / {earliest_checkin}")
+
+    if timestamp > latest_checkin:
+        abort(403, f"Too late")
+
+    # calculate what we would expect them to increment by based off of the time
+    # delta
+
+    delta = timestamp - old_timestamp
+
+    # TODO: make sure rounding here isn't causing any exploits
+    expected_spins = round(previous_spins + delta / (TIME_FOR_ONE_SPIN_MS / 1000))
+
+    if expected_spins < spins:
+        # they went too fast
+        abort(403, f"Cool your jets {expected_spins} / {spins}")
+
+    # we allow them to go slower than expected, as long as they are in the MAXIMUM_TIME_BETWEEN_UPDATES_S window
 
     # at this point, the hash (and therfore the spin count) they gave is correct
     # and the timing is correct. issue a new token
-    new_token = get_secret_hash(
-        timestamp, bytes(addr, "ascii"), id.bytes, spins_from_client
-    )
+    new_token = get_secret_hash(timestamp, bytes(addr, "ascii"), id.bytes, spins)
 
     return jsonify(
         {
@@ -212,10 +241,6 @@ def update():
 def updateleaderboard():
     response = update()
 
-    # we are going to hold the response hostage. if they actually don't deserve
-    # to be on the leaderboard, we reject them and don't issue a token to prevent
-    # people from abusing this endpoint
-
     # at this point, we have authenticated the client's token.
     spins = int(request.json["spins"])
 
@@ -224,59 +249,91 @@ def updateleaderboard():
     # do 80% of this value to account for a client that has a stale copy of
     # the high score list (due to caching)
     # todo: could we just add an INC index on spins?
-    minimum = int(cur.execute("SELECT min FROM minimum").fetchone()[0] * 0.8)
+    minimum = int(cur.execute("SELECT min FROM minimum").fetchone()["min"] * 0.8)
 
-    # todo: race condition between MINIMUM and updating the high score list/database file
+    # TODO: race condition between MINIMUM and updating the high score list/database file
     if spins <= minimum:
         abort(401, "You aren't actually on the high score list, liar")
 
     if "name" in request.json:
         name = request.json["name"]
-        if len(name) > 10:
-            # todo: sentiment analysis
-            abort(400, "Too much long")
+        if type(name) != str:
+            abort(400, "Oops")
     else:
+        # just use the first bit of the UUID instead
         name = request.json["id"].split("-")[0]
+
+    if len(name) > 16 or len(name) < 2:
+        # todo: sentiment analysis
+        abort(400, "I hate your name buddy")
+
     id = str(request.json["id"])
     spins = int(request.json["spins"])
     timestamp = response.json["timestamp"]
 
-    try:
-        cur.execute(
-            "INSERT INTO highscores (id, name, spins, last_update) VALUES (?, ?, ?, ?)",
-            (id, name, spins, timestamp),
-        )
-    except sqlite3.IntegrityError as e:
-        abort(401, "You're trying to be tricky, aren't you?")
+    attempts = 0
+
+    while attempts < 4:
+        try:
+            cur.execute(
+                "REPLACE INTO highscores (id, name, spins, last_update) VALUES (?, ?, ?, ?)",
+                (id, name, spins, timestamp),
+            )
+            break
+        except sqlite3.IntegrityError as e:
+            abort(401, "You're trying to be tricky, aren't you?")
+        except sqlite3.Error as e:
+            print(e)
+            attempts += 1
+
+    if attempts == 4:
+        abort(500, "Oops")
 
     return response
+
 
 def get_top_five():
     db = sqlite3.connect(DATABASE)
     db.row_factory = make_dicts
     cur = db.cursor()
-    result = cur.execute("SELECT id, name, spins FROM highscores ORDER BY spins DESC LIMIT 5;").fetchall()
+
+    attempts = 0
+
+    while attempts < 4:
+        try:
+            result = cur.execute(
+                "SELECT id, name, spins FROM highscores ORDER BY spins DESC LIMIT 5;"
+            ).fetchall()
+            break
+        except sqlite3.Error as e:
+            print(e)
+        attempts += 1
+
     db.close()
+
     return result
 
+
 if app.debug:
+
     @app.route(f"/v{VERSION}/debugleaderboard", methods=["GET"])
     def debugleaderboard():
         return jsonify({"leaderboard": get_top_five()})
+
 
 def write_leaderboard():
     # todo: we need to update the record instead of always inserting
     # and schedule cleanup task to run infrequently compared to the expected
     # time between intervals
     top_5 = get_top_five()
-    with open(HIGHSCORE_FILE, 'w') as f:
-        f.write(json.dumps({"leaderboard":top_5}))
-    
+    with open(HIGHSCORE_FILE, "w") as f:
+        f.write(json.dumps({"leaderboard": top_5}))
+
     # update the lowest high score
     db = sqlite3.connect(DATABASE)
     cur = db.cursor()
     cur.execute("BEGIN TRANSACTION;")
-    
+
     lowest_highscore = int(top_5[-1]["spins"])
 
     try:
@@ -290,17 +347,12 @@ def write_leaderboard():
         raise e
     finally:
         db.close()
-    
 
-if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+
+if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     sched = BackgroundScheduler()
-    sched.add_job(
-        func=write_leaderboard, 
-        trigger="interval",
-        minutes=1
-    )
+    sched.add_job(func=write_leaderboard, trigger="interval", minutes=1)
     sched.start()
 
 # Shut down the scheduler when exiting the app
 atexit.register(lambda: sched.shutdown())
- 

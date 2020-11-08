@@ -22,6 +22,7 @@
 }
 
 #overlay-div {
+    visibility: hidden;
     position: fixed;
     text-align: center;
     width:100%;
@@ -32,6 +33,44 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    background-color:rgba(0, 0, 0, 0.5);
+}
+
+#modal-div {
+    background-color: #3C4043;
+    border-radius: 5px;
+    font-size: 24px;
+    max-width: 400px;
+    margin-left: 15px;
+    margin-right: 15px;
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+#modal-message {
+    flex: 1;
+    margin-left: 20px;
+    margin-right: 20px;
+}
+
+#modal-id {
+    flex: 1
+}
+
+#modal-input {
+    margin-left: 10px;
+    margin-right: 10px;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+#modal-btn {
+    margin: 20px;
+    min-height: 50px;
+    font-size: 30px;
+    font-family: inherit;
 }
 
 #music {
@@ -53,7 +92,7 @@ body {
     max-width: 50%;
     margin-top: 2%;
     border-radius: 5px;
-
+    box-shadow: 5px 5px 1px #888888;
 }
 
 #messages {
@@ -101,6 +140,7 @@ body {
     align-self: center;
     margin-bottom: 10px;
     visibility: hidden;
+    box-shadow: 5px 5px 1px #888888;
 }
 
 #leaderboard-table {
