@@ -393,3 +393,7 @@ if (TARGET_DATE != -1) {
 }
 
 initializeSongCallbacks()
+
+window.onbeforeunload = function() { 
+    return "Baby Yoda will be SAD if you leave, are you sure??";
+}
