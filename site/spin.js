@@ -38,8 +38,8 @@ const LEADER_4 = document.getElementById("leader-4");
 const LEADER_5 = document.getElementById("leader-5");
 const LEADERS = [LEADER_1, LEADER_2, LEADER_3, LEADER_4, LEADER_5];
 
-const LEADERBOARD_URL = "http://localhost:5000/v1/debugleaderboard"
-const API_URL = "http://localhost:5000/v1"
+const LEADERBOARD_URL = "https://leaders.yodaspin.com/v1/"
+const API_URL = "https://api.yodaspin.com/v1"
 const REGISTER_ENDPOINT = `${API_URL}/register`
 const UPDATE_ENDPOINT = `${API_URL}/update`
 const UPDATELEADERBOARD_ENDPOINT = `${API_URL}/updateleaderboard`
@@ -54,6 +54,7 @@ let modalMode = null;
 let faulted = false;
 let name = null;
 let hadHighscore = false;
+let starMovementSpeed = 0.1;
 
 // Values from the server
 let lastTimestamp = null;
@@ -73,7 +74,7 @@ function getRandomInt(min, max) {
 }
 
 let initialOffset = getRandomInt(0, SPINS_BETWEEN_UPDATES);
-let registerAt = SPINS_BETWEEN_UPDATES + initialOffset;
+let registerAt = initialOffset;
 let registered = false;
 
 // only the finest code copy pasted from Stack Overflow
@@ -172,12 +173,13 @@ async function refreshToken() {
     })
 
     if (!response.ok) {
-        faulted = true;
         if (response.status == 403) {
             // uh oh
-            displayModal("Lost Server Connection", "You've lost your connection with the server. This can happen because your computer went to sleep, lost connectivity, or the tab was in the background. You will not get on the leaderboard.", "Darn.");
+            faulted = true;
+            displayModal("Lost Server Connection", "You've lost your connection with the server. This can happen because your device went to sleep, lost connectivity, or the tab was in the background. You will not get on the leaderboard.", "Darn.");
         } else {
-            displayModal("Something went wrong!", "Something broke, and your high score will not update now. Sorry.", "You suck, but OK");
+            faulted = true;
+            displayModal("Something went wrong!", "Something broke, and your high score will not update now, this is a bug. Sorry.", "Learn to code dude");
         }
         return;
     }
@@ -202,6 +204,8 @@ function updateToken() {
         // prompt
         namePromptModal();
         hadHighscore = true;
+        COUNTER.style.color = "gold";
+        starMovementSpeed = 0.2;
     }
 
     if ((rotations - registerAt) % SPINS_BETWEEN_UPDATES == 0) {
@@ -221,7 +225,9 @@ function rotateYoda(clock) {
 
     if (rotationAngle >= 360) {
         ++rotations;
-        COUNTER.innerText = rotations.toString();
+        COUNTER.innerText = rotations.toLocaleString();
+        document.title = `${ hasHighScore() ? "🤩 " : ""}YODA SPIN | ${rotations.toLocaleString()}`;
+
         updateToken();
         rotationAngle = rotationAngle % 360;
     }
@@ -236,7 +242,7 @@ function updateClock() {
     if (diff < 0) {
         clearInterval(clockInterval);
         // todo: play alert sound?
-        COUNTDOWN.innerText = "00:00:00.00"
+        COUNTDOWN.innerText = "00:00:00:00.00"
         return;
     }
 
@@ -295,9 +301,20 @@ function updateHighscores() {
         let i = 0;
         for ( ; i < highscores.length; ++i) {
             let row = LEADERS[i];
+            if (highscores[i]["name"] == name) {
+                highscores[i]["name"] = `🎉 ${highscores[i]["name"]} 🎉`;
+                highscores[i]["spins"] = rotations;
+                row.cells[0].style.color = "gold";
+                row.cells[1].style.color = "gold";
+                row.cells[2].style.color = "gold";
+            } else {
+                row.cells[0].style.color = "inherit";
+                row.cells[1].style.color = "inherit";
+                row.cells[2].style.color = "inherit";
+            }
             row.cells[0].innerText = i + 1;
             row.cells[1].innerText = highscores[i]["name"];
-            row.cells[2].innerText = highscores[i]["spins"];
+            row.cells[2].innerText = highscores[i]["spins"].toLocaleString();
         }
 
         // update the minimum high score (for detecting if we are on the leaderboard)
@@ -350,13 +367,21 @@ function displayModal(title, message, btn_text) {
 }
 
 function namePromptModal() {
-    displayModal("GOOD NEWS", "You're on the leaderboard! Put in a name", "LET'S GOOO");
+    displayModal("GOOD NEWS", "You're on the leaderboard! Put in a name. \nThe leaderboard takes a while to update.", "LET'S GOOO");
     MODAL_INPUT.style.visibility = "inherit";
     modalMode = "input";
 }
 
 LEADERBOARD.addEventListener("touch", toggleLeaderboard);
 LEADERBOARD.addEventListener("click", toggleLeaderboard);
+
+// When they press enter in the textarea, submit the form
+MODAL_INPUT.addEventListener("keyup", function(event) {
+    if (event.keyCode === 13) {
+      event.preventDefault();
+      MODAL_BUTTON.click();
+    }
+  });
 
 updateHighscores()
 let highscoreInterval = setInterval(updateHighscores, LEADERBOARD_UPDATE_INTERVAL_MS);

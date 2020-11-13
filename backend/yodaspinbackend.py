@@ -14,6 +14,7 @@ from flask_cors import CORS
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+
 def get_ip_from_request():
     """
     Returns the IP address of the current request
@@ -30,11 +31,9 @@ def get_ip_from_request():
     user_ip = forward_chain[-1 * app.config["NUMBER_OF_PROXIES"]]
     return user_ip
 
+
 app = Flask(__name__)
-limiter = Limiter(
-    app,
-    key_func=get_ip_from_request
-)
+limiter = Limiter(app, key_func=get_ip_from_request)
 app.config["NUMBER_OF_PROXIES"] = 2
 app.config["SECRET"] = b"Burritos are my favorite animal"
 app.config["DATABASE"] = "backend/yoda.db"
@@ -219,7 +218,7 @@ def update():
     latest_checkin = old_timestamp + MAXIMUM_TIME_BETWEEN_UPDATES_S
 
     # this is meant to be just a slap on the wrist, really there is nothing
-    # stopping a client from hammering this endpoint. 
+    # stopping a client from hammering this endpoint.
     # TODO: ban id if they check in too early somehow
     if timestamp < earliest_checkin:
         abort(403, f"Too soon")
@@ -254,7 +253,9 @@ def update():
 
 
 @app.route(f"/v{VERSION}/updateleaderboard", methods=["POST"])
-@limiter.limit("1/minute")  # assuming that there will only be one person with a highscore per ip address
+@limiter.limit(
+    "1/minute"
+)  # assuming that there will only be one person with a highscore per ip address
 def updateleaderboard():
     response = update()
 
@@ -319,7 +320,7 @@ def get_top_five():
     while attempts < 4:
         try:
             result = cur.execute(
-                "SELECT id, name, spins FROM highscores ORDER BY spins DESC LIMIT 5;"
+                "SELECT name, spins FROM highscores ORDER BY spins DESC LIMIT 5;"
             ).fetchall()
             break
         except sqlite3.Error as e:
@@ -332,6 +333,7 @@ def get_top_five():
 
 
 if app.debug:
+
     @app.route(f"/v{VERSION}/debugleaderboard", methods=["GET"])
     def debugleaderboard():
         return jsonify({"leaderboard": get_top_five()})

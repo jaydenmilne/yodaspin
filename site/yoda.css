@@ -8,6 +8,14 @@
     transform: translate(-50%, -50%) rotate(0deg);
 }
 
+.placenum {
+    align-content: right;
+}
+
+.spinnum {
+    font-family: 'Overpass Mono', monospace;
+}
+
 #outer-div {
     position: fixed;
     text-align: center;
@@ -78,7 +86,7 @@
 }
 body {
     background-color: black;
-    font-family: 'Staatliches', cursive;
+    font-family: 'Nunito', sans-serif;
     color: white;
 }
 
@@ -134,7 +142,7 @@ body {
     padding: 15px;
     border-radius: 5px;
     opacity: 30%;
-    width: 200px;
+    min-width: 200px;
     display: flex;
     flex-direction: column;
     align-self: center;
