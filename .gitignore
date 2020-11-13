@@ -3,3 +3,6 @@ backend/__pycache__
 env/
 yoda.db
 highscores.txt
+backend.db
+backend/yoda.db*
+*.db
