@@ -192,7 +192,7 @@ async function refreshToken() {
 
 
 function updateToken() {
-    if (rotations < SPINS_BETWEEN_UPDATES * 2) {
+    if (rotations < SPINS_BETWEEN_UPDATES) {
         if (!registered && rotations >= registerAt) {
             initialRegistration();
         }
