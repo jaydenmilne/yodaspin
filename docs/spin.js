@@ -177,7 +177,7 @@ async function refreshToken() {
             // uh oh
             faulted = true;
             displayModal("Lost Server Connection", "You've lost your connection with the server. This can happen because your device went to sleep, lost connectivity, or the tab was in the background. You will not get on the leaderboard.", "Darn.");
-        } else {
+        } else if (response.status < 500 && response.status >= 400 && response.status != 403) {
             faulted = true;
             displayModal("Something went wrong!", "Something broke, and your high score will not update now, this is a bug. Sorry.", "Learn to code dude");
         }
