@@ -3,12 +3,12 @@
 const DATES_OF_INTEREST = [
     new Date(Date.UTC(2020, 9, 30, 7, 0, 0, 0)),
     new Date(Date.UTC(2020, 10, 6, 7, 0, 0, 0)),
-    new Date(Date.UTC(2020, 10, 13, 7, 0, 0, 0)),
-    new Date(Date.UTC(2020, 10, 20, 7, 0, 0, 0)),
-    new Date(Date.UTC(2020, 10, 27, 7, 0, 0, 0)),
-    new Date(Date.UTC(2020, 11, 4, 7, 0, 0, 0)),
-    new Date(Date.UTC(2020, 11, 11, 7, 0, 0, 0)),
-    new Date(Date.UTC(2020, 11, 18, 7, 0, 0, 0))
+    new Date(Date.UTC(2020, 10, 13, 8, 1, 0, 0)),
+    new Date(Date.UTC(2020, 10, 20, 8, 1, 0, 0)),
+    new Date(Date.UTC(2020, 10, 27, 8, 1, 0, 0)),
+    new Date(Date.UTC(2020, 11, 4, 8, 1, 0, 0)),
+    new Date(Date.UTC(2020, 11, 11, 8, 1, 0, 0)),
+    new Date(Date.UTC(2020, 11, 18, 8, 1, 0, 0))
 ]
 
 const SONGS = [
