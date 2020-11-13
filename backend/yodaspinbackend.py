@@ -41,7 +41,7 @@ app.config["HIGHSCORE_FILE"] = "highscores.txt"
 
 app.config.from_envvar("YODASPIN_SETTINGS")
 
-CORS(app)
+CORS(app, origins="https://yodaspin.com/")
 VERSION = "1"
 
 # Security related stuff
