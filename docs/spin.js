@@ -17,7 +17,7 @@ const SONGS = [
     new Audio("sound/theme.mp3")
 ]
 
-const LEADERBOARD_UPDATE_INTERVAL_MS = 5000;
+const LEADERBOARD_UPDATE_INTERVAL_MS = 15000;
 
 const YODA = document.getElementById("yoda");
 const COUNTER = document.getElementById("counter");
