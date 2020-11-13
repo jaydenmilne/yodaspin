@@ -1,0 +1,76 @@
+<html lang="en">
+    <head>
+        <!-- Global site tag (gtag.js) - Google Analytics. Forgive me for snooping -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-XZQTC2LY8F"></script>
+        <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-XZQTC2LY8F');
+        </script>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="yoda.css">
+        <title>
+            YODA SPIN    
+        </title>
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Overpass+Mono:wght@600&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Nunito&display=swap" rel="stylesheet">
+    </head>
+    <body>
+        <canvas id="canvas" style="width: 100%; height: 100%; padding: 0;margin: 0;"></canvas>
+        <img id="yoda" src="yoda.png">
+
+        <div id="outer-div">
+            <div id="counter">0</div>
+            <div id="reverse-layout">
+                <div id="bottom-bar">
+                    <span class="bottom-feeder">Made by Jayden Milne</span>
+                    <span class="bottom-feeder"><a href="https://github.com/jaydenmilne/yodaspin" target="_blank">Source</a></span>
+                    <span class="bottom-feeder"><a href="https://medium.com/better-programming/fun-with-html-canvas-lets-create-a-star-field-a46b0fed5002" target="_blank">Star field</a></span>
+                    <span class="bottom-feeder">Tap for jams</span>
+                    <span class="bottom-feeder"><a href="sound/" target="_blank">Music Credits</a></span>
+                </div>
+                <div id="countdown">
+                    10:00:00
+                </div>
+                <div id="leaderboard">
+                <p id="leaderboard-label">LEADERBOARD</p>
+                    <table id="leaderboard-table">
+                        <tr id="leader-1">
+                            <td class="placenum"><strong>1</strong></td> <td>Dan</td> <td class="spinnum">1234</td>
+                        </tr>
+                        <tr id="leader-2">
+                            <td class="placenum"><strong>2</strong></td> <td>Carl</td> <td class="spinnum">1234</td>
+                        </tr>                    
+                        <tr id="leader-3">
+                            <td class="placenum"><strong>3</strong></td> <td>Dave</td> <td class="spinnum">1234</td>
+                        </tr>                    
+                        <tr id="leader-4">
+                            <td class="placenum"><strong>4</strong></td> <td>Phil</td> <td class="spinnum">1234</td>
+                        </tr>                    
+                        <tr id="leader-5">
+                            <td class="placenum"><strong>5</strong></td> <td>Spencer</td> <td class="spinnum">1234</td>
+                        </tr>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="overlay-div">
+            <div id="modal-div">
+                <h2 id="modal-title">Oops</h3>
+                <p id="modal-message">You got disconnected. This can happen because you're bad</p>
+                <input id="modal-input">
+                <button id="modal-btn">OK...</button>
+            </div>
+        </div>
+
+        <script src="spin.js"></script> 
+        <script src="stars.js"></script>
+    </body>
+
+</html>
