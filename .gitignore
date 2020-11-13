@@ -1,0 +1,8 @@
+backend/__pycache__
+.vscode
+env/
+yoda.db
+highscores.txt
+backend.db
+backend/yoda.db*
+*.db

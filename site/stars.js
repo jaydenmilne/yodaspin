@@ -66,7 +66,7 @@ const tick = time => {
     let elapsed = time - prevTime;
     prevTime = time;
 
-    moveStars(elapsed * 0.1);
+    moveStars(elapsed * starMovementSpeed);
 
     clear();
 
