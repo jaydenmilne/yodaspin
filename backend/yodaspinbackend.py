@@ -254,7 +254,7 @@ def update():
 
 @app.route(f"/v{VERSION}/updateleaderboard", methods=["POST"])
 @limiter.limit(
-    "2/minute"
+    "15/minute"
 )  # assuming that there will only be one person with a highscore per ip address
 def updateleaderboard():
     response = update()
