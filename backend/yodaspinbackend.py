@@ -181,6 +181,9 @@ def update():
 
     previous_spins = body["previous-spins"]
     spins = body["spins"]
+
+    # have a different vairable so that we can override the client if needed
+    spins_to_return = spins
     old_timestamp = body["timestamp"]
     id = body["id"]
     token = body["token"]
@@ -235,8 +238,15 @@ def update():
     expected_spins = round(previous_spins + delta / (TIME_FOR_ONE_SPIN_MS / 1000))
 
     if expected_spins < spins:
-        # they went too fast
-        abort(403, f"Cool your jets {expected_spins} / {spins}")
+        # they went too fast. set an override 
+        if spins - 1 == expected_spins:
+            # in this situation, let them continue, this could be an innocent desync. 
+            # We return in this request the number of spins the client will detect
+            # the discrepancy and adjust itself accordingly
+            spins -= 1
+        else:
+            # they really went too fast, punish them
+            abort(403, f"Cool your jets {expected_spins} / {spins}")
 
     # we allow them to go slower than expected, as long as they are in the MAXIMUM_TIME_BETWEEN_UPDATES_S window
 
@@ -248,6 +258,7 @@ def update():
         {
             "timestamp": timestamp,
             "token": new_token.hex(),
+            "spins": spins
         }
     )
 

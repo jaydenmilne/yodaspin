@@ -181,17 +181,29 @@ async function refreshToken() {
             faulted = true;
             displayModal("Something went wrong!", `Something broke (${response.body}), and your high score will not update now, this is a bug. Sorry.`, "Learn to code dude");
         }
+        // If it isn't a 400 error, then we don't do anything drastic. The server
+        // could just be down temporarily. As long as it comes back up within
+        // 12 hours we can get a new token and pretend this never happened
+        console.error(`Surpressing backend error ${response.status}`);
         return;
     }
     
     lastSpins = spins;
     let body = await response.json();
+
+    if (body["spins"] != lastSpins) {
+        // We went too fast and the server is correcting us. 
+        console.debug("Cooling our jets...");
+        --rotations;
+        lastSpins = body["spins"];
+    }
+
     lastTimestamp = body["timestamp"];
     token = body["token"];
 }
 
 
-function updateToken() {
+function onSpinComplete() {
     if (rotations < SPINS_BETWEEN_UPDATES) {
         if (!registered && rotations >= registerAt) {
             initialRegistration();
@@ -205,7 +217,7 @@ function updateToken() {
         namePromptModal();
         hadHighscore = true;
         COUNTER.style.color = "gold";
-        starMovementSpeed = 0.2;
+        starMovementSpeed = 0.22;
     }
 
     if ((rotations - registerAt) % SPINS_BETWEEN_UPDATES == 0) {
@@ -228,7 +240,7 @@ function rotateYoda(clock) {
         COUNTER.innerText = rotations.toLocaleString();
         document.title = `${ hasHighScore() ? "🤩 " : ""}YODA SPIN | ${rotations.toLocaleString()}`;
 
-        updateToken();
+        onSpinComplete();
         rotationAngle = rotationAngle % 360;
     }
 
