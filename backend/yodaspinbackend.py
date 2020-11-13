@@ -9,11 +9,32 @@ import os
 import json
 import atexit
 import math
+from flask_limiter import Limiter
 from flask_cors import CORS
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
+def get_ip_from_request():
+    """
+    Returns the IP address of the current request
+    """
+    if app.debug:
+        return request.remote_addr
+
+    forward_chain = request.headers.getlist("X-Forwarded-For")
+
+    if len(forward_chain) < app.config["NUMBER_OF_PROXIES"]:
+        abort(403, "Nice try hackerman")
+
+    # todo: configure nginx to only accept requests from cloudflare?
+    user_ip = forward_chain[-1 * app.config["NUMBER_OF_PROXIES"]]
+    return user_ip
+
 app = Flask(__name__)
+limiter = Limiter(
+    app,
+    key_func=get_ip_from_request
+)
 app.config["NUMBER_OF_PROXIES"] = 2
 app.config["SECRET"] = b"Burritos are my favorite animal"
 app.config["DATABASE"] = "backend/yoda.db"
@@ -31,16 +52,22 @@ MAX_CONTENT_LENGTH = 300
 DEGREES_PER_INTERVAL = 4
 SPIN_TIMER_INTERVAL_MS = 32
 SPINS_BETWEEN_UPDATES = 13
-MINIMUM_INITIAL_SPINS_FOR_REGISTRATION = SPINS_BETWEEN_UPDATES
-MAXIMUM_INITIAL_SPINS_FOR_REGISTRATION = 2 * SPINS_BETWEEN_UPDATES
+MINIMUM_INITIAL_SPINS_FOR_REGISTRATION = 0
+MAXIMUM_INITIAL_SPINS_FOR_REGISTRATION = SPINS_BETWEEN_UPDATES + 1
 
 TIME_FOR_ONE_SPIN_MS = (360 / DEGREES_PER_INTERVAL) * 32
 EXPECTED_TIME_BETWEEN_UPDATES_MS = SPINS_BETWEEN_UPDATES * TIME_FOR_ONE_SPIN_MS
 EXPECTED_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_MS / 1000
+
+MINIMUM_TIME_BETWEEN_UPDATES_S = int(EXPECTED_TIME_BETWEEN_UPDATES_S * 0.8)
 MAXIMUM_TIME_BETWEEN_UPDATES_S = 12 * 60 * 60  # 12 hours
 
 
 def make_dicts(cursor, row):
+    """
+    Helper method to make parsing results from the database easier. Returns a dict
+    of column:value.
+    """
     return dict((cursor.description[idx][0], value) for idx, value in enumerate(row))
 
 
@@ -66,40 +93,27 @@ def close_connection(exception):
 @app.errorhandler(403)
 @app.errorhandler(400)
 @app.errorhandler(422)
-def handle_too_long(e):
+def handle_error(e):
     return jsonify(error=str(e)), e.code
 
 
 @app.route("/", methods=["GET"])
 def status():
+    """
+    Quick status check to make sure the backend is running.
+    """
     return "itsworkinganakin.gif"
 
 
-@app.route(f"/v{VERSION}/leaderboard", methods=["GET"])
-def leaderboard():
-    return "Jayden is winning!"
-
-
 def sanity_checks():
+    """
+    Try and weed out malicious or malformed input
+    """
     if request.content_length > MAX_CONTENT_LENGTH:
         abort(413, description="Too much for me buddy")
 
     if not request.is_json:
         abort(400, "Bro can you even")
-
-
-def get_ip_from_request():
-    if app.debug:
-        return request.remote_addr
-
-    forward_chain = request.headers.getlist("X-Forwarded-For")
-
-    if len(forward_chain) < app.config["NUMBER_OF_PROXIES"]:
-        abort(403, "Nice try hackerman")
-
-    # todo: configure nginx to only accept requests from cloudflare?
-    user_ip = forward_chain[-1 * app.config["NUMBER_OF_PROXIES"]]
-    return user_ip
 
 
 def get_secret_hash(timestamp, addr, client_id, spins):
@@ -119,6 +133,7 @@ def get_secret_hash(timestamp, addr, client_id, spins):
 
 
 @app.route(f"/v{VERSION}/register", methods=["POST"])
+@limiter.limit("1/second")
 def register():
     sanity_checks()
     body = request.json
@@ -198,13 +213,16 @@ def update():
     timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
 
     # the soonest they are allowed to check in again
-    # earliest_checkin = old_timestamp + EXPECTED_TIME_BETWEEN_UPDATES_S
+    earliest_checkin = old_timestamp + MINIMUM_TIME_BETWEEN_UPDATES_S
 
     # the latest after their last token was issued they can check in again
     latest_checkin = old_timestamp + MAXIMUM_TIME_BETWEEN_UPDATES_S
 
-    # if timestamp < earliest_checkin:
-    #    abort(403, f"Too soon ({timestamp} / {earliest_checkin}")
+    # this is meant to be just a slap on the wrist, really there is nothing
+    # stopping a client from hammering this endpoint. 
+    # TODO: ban id if they check in too early somehow
+    if timestamp < earliest_checkin:
+        abort(403, f"Too soon")
 
     if timestamp > latest_checkin:
         abort(403, f"Too late")
@@ -236,6 +254,7 @@ def update():
 
 
 @app.route(f"/v{VERSION}/updateleaderboard", methods=["POST"])
+@limiter.limit("1/minute")  # assuming that there will only be one person with a highscore per ip address
 def updateleaderboard():
     response = update()
 
@@ -313,7 +332,6 @@ def get_top_five():
 
 
 if app.debug:
-
     @app.route(f"/v{VERSION}/debugleaderboard", methods=["GET"])
     def debugleaderboard():
         return jsonify({"leaderboard": get_top_five()})
