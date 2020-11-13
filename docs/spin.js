@@ -385,11 +385,12 @@ MODAL_INPUT.addEventListener("keyup", function(event) {
 
 updateHighscores()
 let highscoreInterval = setInterval(updateHighscores, LEADERBOARD_UPDATE_INTERVAL_MS);
+let clockInterval = 0;
 
 if (TARGET_DATE != -1) {
     updateClock();
     COUNTDOWN.style.visibility = "visible";
-    let clockInterval = setInterval(updateClock, 10);
+    clockInterval = setInterval(updateClock, 10);
 }
 
 initializeSongCallbacks()
