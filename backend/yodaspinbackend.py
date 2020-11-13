@@ -14,20 +14,18 @@ from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
+app.config["NUMBER_OF_PROXIES"] = 2
+app.config["SECRET"] = b"Burritos are my favorite animal"
+app.config["DATABASE"] = "backend/yoda.db"
+app.config["HIGHSCORE_FILE"] = "highscores.txt"
+
+app.config.from_envvar("YODASPIN_SETTINGS")
+
 CORS(app)
 VERSION = "1"
 
 # Security related stuff
 MAX_CONTENT_LENGTH = 300
-
-try:
-    import config.py
-except ModuleNotFoundError as e:
-    # default configuration
-    NUMBER_OF_PROXIES = 2  # cloudflare, nginx, app
-    SECRET = b"Burritos are my favorite animal"
-    DATABASE = "backend/yoda.db"
-    HIGHSCORE_FILE = "highscores.txt"
 
 # The following constants must be kept in sync with the client
 DEGREES_PER_INTERVAL = 4
@@ -49,7 +47,7 @@ def make_dicts(cursor, row):
 def get_db():
     db = getattr(g, "_database", None)
     if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
+        db = g._database = sqlite3.connect(app.config["DATABASE"])
     db.row_factory = make_dicts
     return db
 
@@ -96,11 +94,11 @@ def get_ip_from_request():
 
     forward_chain = request.headers.getlist("X-Forwarded-For")
 
-    if len(forward_chain) < NUMBER_OF_PROXIES:
+    if len(forward_chain) < app.config["NUMBER_OF_PROXIES"]:
         abort(403, "Nice try hackerman")
 
     # todo: configure nginx to only accept requests from cloudflare?
-    user_ip = forward_chain[-1 * NUMBER_OF_PROXIES]
+    user_ip = forward_chain[-1 * app.config["NUMBER_OF_PROXIES"]]
     return user_ip
 
 
@@ -117,7 +115,7 @@ def get_secret_hash(timestamp, addr, client_id, spins):
     m.extend(addr)
     m.extend(client_id)
 
-    return hmac.digest(SECRET, m, "MD5")
+    return hmac.digest(app.config["SECRET"], m, "MD5")
 
 
 @app.route(f"/v{VERSION}/register", methods=["POST"])
@@ -293,7 +291,7 @@ def updateleaderboard():
 
 
 def get_top_five():
-    db = sqlite3.connect(DATABASE)
+    db = sqlite3.connect(app.config["DATABASE"])
     db.row_factory = make_dicts
     cur = db.cursor()
 
@@ -326,11 +324,11 @@ def write_leaderboard():
     # and schedule cleanup task to run infrequently compared to the expected
     # time between intervals
     top_5 = get_top_five()
-    with open(HIGHSCORE_FILE, "w") as f:
+    with open(app.config["HIGHSCORE_FILE"], "w") as f:
         f.write(json.dumps({"leaderboard": top_5}))
 
     # update the lowest high score
-    db = sqlite3.connect(DATABASE)
+    db = sqlite3.connect(app.config["DATABASE"])
     cur = db.cursor()
     cur.execute("BEGIN TRANSACTION;")
 
