@@ -37,7 +37,7 @@ MAXIMUM_INITIAL_SPINS_FOR_REGISTRATION = 2 * SPINS_BETWEEN_UPDATES
 TIME_FOR_ONE_SPIN_MS = (360 / DEGREES_PER_INTERVAL) * 32
 EXPECTED_TIME_BETWEEN_UPDATES_MS = SPINS_BETWEEN_UPDATES * TIME_FOR_ONE_SPIN_MS
 EXPECTED_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_MS / 1000
-MAXIMUM_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_S * 5
+MAXIMUM_TIME_BETWEEN_UPDATES_S = 12 * 60 * 60 # 12 hours
 
 
 def make_dicts(cursor, row):
@@ -349,7 +349,7 @@ def write_leaderboard():
 
 if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
     sched = BackgroundScheduler()
-    sched.add_job(func=write_leaderboard, trigger="interval", minutes=1)
+    sched.add_job(func=write_leaderboard, trigger="interval", seconds=10)
     sched.start()
 
 # Shut down the scheduler when exiting the app
