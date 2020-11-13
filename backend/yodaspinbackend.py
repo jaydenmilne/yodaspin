@@ -38,10 +38,10 @@ app.config["NUMBER_OF_PROXIES"] = 2
 app.config["SECRET"] = b"Burritos are my favorite animal"
 app.config["DATABASE"] = "backend/yoda.db"
 app.config["HIGHSCORE_FILE"] = "highscores.txt"
-
+app.config["CORS_DOMAIN"] = "*"
 app.config.from_envvar("YODASPIN_SETTINGS")
 
-CORS(app, origins="https://yodaspin.com/")
+CORS(app, resources={ "/v1/*" : {"origins": app.config["CORS_DOMAIN"]}})
 VERSION = "1"
 
 # Security related stuff
