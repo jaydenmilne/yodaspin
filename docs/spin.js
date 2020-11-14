@@ -145,7 +145,7 @@ async function initialRegistration() {
 }
 
 function hasHighScore() {
-    return rotations > minHighScore;
+    return rotations > minHighScore && !faulted;
 }
 
 function getUpdateEndpoint() {
@@ -223,7 +223,7 @@ function onSpinComplete() {
     // check to see if we are on the leaderboard
 
     if (hasHighScore() && !hadHighscore) {
-        // prompt
+
         namePromptModal();
         hadHighscore = true;
         COUNTER.style.color = "gold";
