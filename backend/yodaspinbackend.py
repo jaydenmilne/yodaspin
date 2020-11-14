@@ -182,8 +182,6 @@ def update():
     previous_spins = body["previous-spins"]
     spins = body["spins"]
 
-    # have a different vairable so that we can override the client if needed
-    spins_to_return = spins
     old_timestamp = body["timestamp"]
     id = body["id"]
     token = body["token"]

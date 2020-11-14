@@ -55,6 +55,7 @@ let faulted = false;
 let name = null;
 let hadHighscore = false;
 let starMovementSpeed = 0.1;
+let skipUpdate = false;
 
 // Values from the server
 let lastTimestamp = null;
@@ -154,6 +155,13 @@ function getUpdateEndpoint() {
 async function refreshToken() {
     if (faulted) return;
 
+    // We got set back a spin and decremented our counter, which would trigger
+    // another update immediately. We don't want this.
+    if (skipUpdate) {
+        skipUpdate = false;
+        return;
+    }
+
     let endpoint = getUpdateEndpoint();
     let spins = rotations;
     // TODO: Retry logic
@@ -179,7 +187,7 @@ async function refreshToken() {
             displayModal("Lost Server Connection", "You've lost your connection with the server. This can happen because your device went to sleep, lost connectivity, or the tab was in the background. You will not get on the leaderboard.", "Darn.");
         } else if (response.status < 500 && response.status >= 400 && response.status != 403) {
             faulted = true;
-            displayModal("Something went wrong!", `Something broke (${response.body}), and your high score will not update now, this is a bug. Sorry.`, "Learn to code dude");
+            displayModal("Something went wrong!", `Something broke (${JSON.stringify(response.body)}), and your high score will not update now, this is a bug. Sorry.`, "Learn to code dude");
         }
         // If it isn't a 400 error, then we don't do anything drastic. The server
         // could just be down temporarily. As long as it comes back up within
@@ -194,7 +202,9 @@ async function refreshToken() {
     if (body["spins"] != lastSpins) {
         // We went too fast and the server is correcting us. 
         console.debug("Cooling our jets...");
-        --rotations;
+        rotations--;
+        // We were one spin too fast. We need to accept what the server gave us
+        skipUpdate = true;
         lastSpins = body["spins"];
     }
 
