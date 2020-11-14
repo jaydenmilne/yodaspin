@@ -232,12 +232,11 @@ def update():
 
     delta = timestamp - old_timestamp
 
-    # TODO: make sure rounding here isn't causing any exploits
-    expected_spins = round(previous_spins + delta / (TIME_FOR_ONE_SPIN_MS / 1000))
+    expected_spins = math.floor(previous_spins + delta / (TIME_FOR_ONE_SPIN_MS / 1000))
 
     if expected_spins < spins:
         # they went too fast. set an override 
-        if spins - 1 == expected_spins:
+        if abs(spins - expected_spins) < 5:
             # in this situation, let them continue, this could be an innocent desync. 
             # We return in this request the number of spins the client will detect
             # the discrepancy and adjust itself accordingly
