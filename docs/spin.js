@@ -183,10 +183,14 @@ async function refreshToken() {
         if (response.status == 403) {
             // uh oh
             faulted = true;
-            displayModal("Lost Server Connection", "You've lost your connection with the server. This can happen because your device went to sleep, lost connectivity, or the tab was in the background. You will not get on the leaderboard.", "Darn.");
+            let error = await response.json();
+
+            displayModal("Lost Server Connection", `You've lost your connection with the server (reason ${error["error"]} / ${response.status}). This can happen because your device went to sleep, lost connectivity, or the tab was in the background. You will not get on the leaderboard.`, "Darn.");
         } else if (response.status < 500 && response.status >= 400 && response.status != 403) {
             faulted = true;
-            displayModal("Something went wrong!", `Something broke (${JSON.stringify(response.body)}), and your high score will not update now, this is a bug. Sorry.`, "Learn to code dude");
+            let error = await response.json();
+
+            displayModal("Something went wrong!", `Something broke (${JSON.stringify(error)} / ${response.status}), and your high score will not update now, this is a bug. Sorry. \n Screenshot this and send it to Jayden`, "Learn to code dude");
         }
         // If it isn't a 400 error, then we don't do anything drastic. The server
         // could just be down temporarily. As long as it comes back up within
