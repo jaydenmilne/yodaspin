@@ -34,14 +34,14 @@ def get_ip_from_request():
 
 app = Flask(__name__)
 limiter = Limiter(app, key_func=get_ip_from_request)
-app.config["NUMBER_OF_PROXIES"] = 2
-app.config["SECRET"] = b"Burritos are my favorite animal"
-app.config["DATABASE"] = "backend/yoda.db"
-app.config["HIGHSCORE_FILE"] = "highscores.txt"
-app.config["CORS_DOMAIN"] = "*"
+
 app.config.from_envvar("YODASPIN_SETTINGS")
 
-CORS(app, resources={ "/v1/*" : {"origins": app.config["CORS_DOMAIN"]}})
+if app.debug:
+    CORS(app)
+else:
+    CORS(app, resources={"/v1/*": {"origins": app.config["CORS_DOMAIN"]}})
+
 VERSION = "1"
 
 # Security related stuff
@@ -58,7 +58,8 @@ TIME_FOR_ONE_SPIN_MS = (360 / DEGREES_PER_INTERVAL) * 32
 EXPECTED_TIME_BETWEEN_UPDATES_MS = SPINS_BETWEEN_UPDATES * TIME_FOR_ONE_SPIN_MS
 EXPECTED_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_MS / 1000
 
-MINIMUM_TIME_BETWEEN_UPDATES_S = int(EXPECTED_TIME_BETWEEN_UPDATES_S * 0.8)
+# this is used mostly to prevent people from spamming this endpoint quickly
+MINIMUM_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_S * 0.5
 MAXIMUM_TIME_BETWEEN_UPDATES_S = 12 * 60 * 60  # 12 hours
 
 
@@ -117,18 +118,24 @@ def sanity_checks():
 
 def get_secret_hash(timestamp, addr, client_id, spins):
     """
-    timestamp: int
+    timestamp: float
     addr: string
-    client_id: byte string
+    client_id: uuid
     spins: int
     """
     m = bytearray()
-    m.extend(timestamp.to_bytes(4, sys.byteorder))
+    m.extend(bytes(str(timestamp), "ascii"))
     m.extend(spins.to_bytes(16, sys.byteorder))
-    m.extend(addr)
-    m.extend(client_id)
+    m.extend(bytes(addr, "ascii"))
+    m.extend(client_id.bytes)
 
     return hmac.digest(app.config["SECRET"], m, "MD5")
+
+
+def get_utc_timestamp():
+    now = datetime.datetime.now()
+    utc = now.replace(tzinfo=datetime.timezone.utc)
+    return utc.timestamp()
 
 
 @app.route(f"/v{VERSION}/register", methods=["POST"])
@@ -149,8 +156,8 @@ def register():
     # The server saves no state until the client decides its on the leaderboard
     # and starts hitting the updateleaderboard endpoint instead of the update endpoint
     addr = get_ip_from_request()
-    timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
-    id = uuid.uuid4()
+    timestamp = get_utc_timestamp()
+    client_id = uuid.uuid4()
 
     if (
         spins < MINIMUM_INITIAL_SPINS_FOR_REGISTRATION
@@ -158,9 +165,9 @@ def register():
     ):
         abort(401, "Trying to pull a fast one?")
 
-    token = get_secret_hash(timestamp, bytes(addr, "ascii"), id.bytes, spins)
+    token = get_secret_hash(timestamp, addr, client_id, spins)
 
-    return jsonify({"timestamp": timestamp, "id": id, "token": token.hex()})
+    return jsonify({"timestamp": str(timestamp), "id": client_id, "token": token.hex()})
 
 
 @app.route(f"/v{VERSION}/update", methods=["POST"])
@@ -183,34 +190,40 @@ def update():
     spins = body["spins"]
 
     old_timestamp = body["timestamp"]
-    id = body["id"]
+    client_id = body["id"]
     token = body["token"]
 
     if (
         type(previous_spins) != int
-        or type(old_timestamp) != int
+        or type(old_timestamp)
+        not in [str, int]  # allow ints for old clients, todo: remove this
         or type(spins) != int
         or type(token) != str
-        or type(id) != str
+        or type(client_id) != str
     ):
         abort(400, "That doesn't go there")
 
-    id = uuid.UUID(id)
+    try:
+        old_timestamp = float(old_timestamp)
+    except ValueError as e:
+        abort(400, "That was an interesting timestamp")
+
+    client_id = uuid.UUID(client_id)
     token = bytearray.fromhex(token)
 
     addr = get_ip_from_request()
 
     calculated_token = get_secret_hash(
         old_timestamp,
-        bytes(addr, "ascii"),
-        id.bytes,
+        addr,
+        client_id,
         previous_spins,
     )
 
     if not hmac.compare_digest(calculated_token, token):
         abort(401, "You lied to me")
 
-    timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    timestamp = get_utc_timestamp()
 
     # the soonest they are allowed to check in again
     earliest_checkin = old_timestamp + MINIMUM_TIME_BETWEEN_UPDATES_S
@@ -227,43 +240,36 @@ def update():
     if timestamp > latest_checkin:
         abort(403, f"Too late")
 
-    # calculate what we would expect them to increment by based off of the time
-    # delta
-
+    # calculate what we would expect them to be at by based off of the time delta
     delta = timestamp - old_timestamp
 
-    expected_spins = math.floor(previous_spins + delta / (TIME_FOR_ONE_SPIN_MS / 1000))
+    expected_spins = round(previous_spins + delta / (TIME_FOR_ONE_SPIN_MS / 1000))
 
     if expected_spins < spins:
-        # they went too fast. set an override 
+        # they went too fast. set an override
         if abs(spins - expected_spins) < 5:
-            # in this situation, let them continue, this could be an innocent desync. 
+            # in this situation, let them continue, this could be an innocent desync.
             # We return in this request the number of spins the client will detect
             # the discrepancy and adjust itself accordingly
-            spins -= 1
+            spins = expected_spins
         else:
             # they really went too fast, punish them
             abort(403, f"Cool your jets {expected_spins} / {spins}")
 
-    # we allow them to go slower than expected, as long as they are in the MAXIMUM_TIME_BETWEEN_UPDATES_S window
+    # we allow them to go slower than expected, as long as they are in the
+    # MAXIMUM_TIME_BETWEEN_UPDATES_S window
 
-    # at this point, the hash (and therfore the spin count) they gave is correct
-    # and the timing is correct. issue a new token
-    new_token = get_secret_hash(timestamp, bytes(addr, "ascii"), id.bytes, spins)
+    # at this point, we have verified the integrity of the information they provided
+    # and made sure that the amount of spins they gave is legal
+    new_token = get_secret_hash(timestamp, addr, client_id, spins)
 
     return jsonify(
-        {
-            "timestamp": timestamp,
-            "token": new_token.hex(),
-            "spins": spins
-        }
+        {"timestamp": str(timestamp), "token": new_token.hex(), "spins": spins}
     )
 
 
 @app.route(f"/v{VERSION}/updateleaderboard", methods=["POST"])
-@limiter.limit(
-    "15/minute"
-)  # assuming that there will only be one person with a highscore per ip address
+@limiter.limit("15/minute")
 def updateleaderboard():
     response = update()
 

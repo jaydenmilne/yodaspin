@@ -17,7 +17,7 @@ const SONGS = [
     new Audio("sound/theme.mp3")
 ]
 
-const LEADERBOARD_UPDATE_INTERVAL_MS = 15000;
+const LEADERBOARD_UPDATE_INTERVAL_MS = 10000;
 
 const YODA = document.getElementById("yoda");
 const COUNTER = document.getElementById("counter");
@@ -38,8 +38,8 @@ const LEADER_4 = document.getElementById("leader-4");
 const LEADER_5 = document.getElementById("leader-5");
 const LEADERS = [LEADER_1, LEADER_2, LEADER_3, LEADER_4, LEADER_5];
 
-const LEADERBOARD_URL = "https://leaders.yodaspin.com/v1/"
-const API_URL = "https://api.yodaspin.com/v1"
+const LEADERBOARD_URL = "http://127.0.0.1:5000/v1/debugleaderboard"
+const API_URL = "http://127.0.0.1:5000/v1"
 const REGISTER_ENDPOINT = `${API_URL}/register`
 const UPDATE_ENDPOINT = `${API_URL}/update`
 const UPDATELEADERBOARD_ENDPOINT = `${API_URL}/updateleaderboard`
@@ -56,6 +56,7 @@ let name = null;
 let hadHighscore = false;
 let starMovementSpeed = 0.1;
 let skipUpdate = false;
+let spinsToSkip = -1;
 
 // Values from the server
 let lastTimestamp = null;
@@ -76,6 +77,9 @@ function getRandomInt(min, max) {
 
 let initialOffset = getRandomInt(0, SPINS_BETWEEN_UPDATES);
 let registerAt = initialOffset;
+
+console.log(`I will register at ${registerAt}`);
+
 let registered = false;
 
 // only the finest code copy pasted from Stack Overflow
@@ -142,6 +146,8 @@ async function initialRegistration() {
     token = body["token"];
     id = body["id"];
     name = id.split("-")[0]; // provisional name
+
+    console.log(`Registered, id='${id}'`);
 }
 
 function hasHighScore() {
@@ -153,14 +159,7 @@ function getUpdateEndpoint() {
 }
 
 async function refreshToken() {
-    if (faulted) return;
-
-    // We got set back a spin and decremented our counter, which would trigger
-    // another update immediately. We don't want this.
-    if (skipUpdate) {
-        skipUpdate = false;
-        return;
-    }
+    if (faulted || skipUpdate) return;
 
     let endpoint = getUpdateEndpoint();
     let spins = rotations;
@@ -199,21 +198,39 @@ async function refreshToken() {
     lastSpins = spins;
     let body = await response.json();
 
-    if (body["spins"] != lastSpins) {
+    if (body["spins"] < lastSpins) {
         // We went too fast and the server is correcting us. 
-        console.debug("Cooling our jets...");
-        rotations--;
-        // We were one spin too fast. We need to accept what the server gave us
-        skipUpdate = true;
+        console.log("Cooling our jets...");
+        spinsToSkip = lastSpins - body["spins"];
         lastSpins = body["spins"];
+        skipUpdate = true;  // Prevent a second update from being triggered
     }
 
     lastTimestamp = body["timestamp"];
     token = body["token"];
+
+    console.log(`Updated token, new='${token}', lastTimestamp='${lastTimestamp}', spins='${lastSpins}'`);
 }
 
 
 function onSpinComplete() {
+    
+    // To resynchronize with the server when we get ahead
+    if (spinsToSkip > 0) {
+        --spinsToSkip;
+    } else {
+        ++rotations;
+        --spinsToSkip;
+    }
+
+    if (spinsToSkip == -1) {
+        skipUpdate = false;
+    }
+
+    COUNTER.innerText = rotations.toLocaleString();
+    document.title = `${ hasHighScore() ? "🤩 " : ""}YODA SPIN | ${rotations.toLocaleString()}`;
+
+
     if (rotations < SPINS_BETWEEN_UPDATES) {
         if (!registered && rotations >= registerAt) {
             initialRegistration();
@@ -246,10 +263,6 @@ function rotateYoda(clock) {
     YODA.style.transform = `translate(-50%, -50%) rotate(${rotationAngle}deg)`;
 
     if (rotationAngle >= 360) {
-        ++rotations;
-        COUNTER.innerText = rotations.toLocaleString();
-        document.title = `${ hasHighScore() ? "🤩 " : ""}YODA SPIN | ${rotations.toLocaleString()}`;
-
         onSpinComplete();
         rotationAngle = rotationAngle % 360;
     }
@@ -325,7 +338,6 @@ function updateHighscores() {
             let row = LEADERS[i];
             if (highscores[i]["name"] == name) {
                 highscores[i]["name"] = `🎉 ${highscores[i]["name"]} 🎉`;
-                highscores[i]["spins"] = rotations;
                 row.cells[0].style.color = "gold";
                 row.cells[1].style.color = "gold";
                 row.cells[2].style.color = "gold";
