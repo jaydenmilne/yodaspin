@@ -38,11 +38,11 @@ const LEADER_4 = document.getElementById("leader-4");
 const LEADER_5 = document.getElementById("leader-5");
 const LEADERS = [LEADER_1, LEADER_2, LEADER_3, LEADER_4, LEADER_5];
 
-const LEADERBOARD_URL = "https://leaders.yodaspin.com/v1/"
-const API_URL = "https://api.yodaspin.com/v1"
-const REGISTER_ENDPOINT = `${API_URL}/register`
-const UPDATE_ENDPOINT = `${API_URL}/update`
-const UPDATELEADERBOARD_ENDPOINT = `${API_URL}/updateleaderboard`
+const LEADERBOARD_URL = "https://leaders.yodaspin.com/v1/";
+const API_URL = "https://api.yodaspin.com/v1";
+const REGISTER_ENDPOINT = `${API_URL}/register`;
+const UPDATE_ENDPOINT = `${API_URL}/update`;
+const UPDATELEADERBOARD_ENDPOINT = `${API_URL}/updateleaderboard`;
 
 let rotationAngle = 0;
 let rotations = 0;

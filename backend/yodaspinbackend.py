@@ -247,10 +247,11 @@ def update():
 
     if expected_spins < spins:
         # they went too fast. set an override
-        if abs(spins - expected_spins) < 5:
+        if abs(spins - expected_spins) < SPINS_BETWEEN_UPDATES:
             # in this situation, let them continue, this could be an innocent desync.
             # We return in this request the number of spins the client will detect
             # the discrepancy and adjust itself accordingly
+            # I have seen desync in the wild up to 5 spins
             spins = expected_spins
         else:
             # they really went too fast, punish them
