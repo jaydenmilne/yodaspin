@@ -42,7 +42,7 @@ if app.debug:
 else:
     CORS(app, resources={"/v1/*": {"origins": app.config["CORS_DOMAIN"]}})
 
-VERSION = "1"
+VERSION = 1
 
 # Security related stuff
 MAX_CONTENT_LENGTH = 300
@@ -54,14 +54,19 @@ SPINS_BETWEEN_UPDATES = 13
 MINIMUM_INITIAL_SPINS_FOR_REGISTRATION = 0
 MAXIMUM_INITIAL_SPINS_FOR_REGISTRATION = SPINS_BETWEEN_UPDATES + 1
 
+
 TIME_FOR_ONE_SPIN_MS = (360 / DEGREES_PER_INTERVAL) * 32
 EXPECTED_TIME_BETWEEN_UPDATES_MS = SPINS_BETWEEN_UPDATES * TIME_FOR_ONE_SPIN_MS
 EXPECTED_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_MS / 1000
+
+# Only allow 3 hours worth of spins between checkins, with the app
+MAXIMUM_SPINS_BETWEEN_CHECKINS_APP = (3600 * 3 * 3000 ) // TIME_FOR_ONE_SPIN_MS
 
 # this is used mostly to prevent people from spamming this endpoint quickly
 MINIMUM_TIME_BETWEEN_UPDATES_S = EXPECTED_TIME_BETWEEN_UPDATES_S * 0.5
 MAXIMUM_TIME_BETWEEN_UPDATES_S = 12 * 60 * 60  # 12 hours
 
+APP_REPLACEMENT_IP_STRING = "application!!1"
 
 def make_dicts(cursor, row):
     """
@@ -70,11 +75,18 @@ def make_dicts(cursor, row):
     """
     return dict((cursor.description[idx][0], value) for idx, value in enumerate(row))
 
+def get_db_path(version):
+    if version == 1:
+        return app.config["DATABASE"]
+    elif version == 2:
+        return app.config["APP_DATABASE"]
+    else:
+        abort(400, "Cant do the thin :(")
 
-def get_db():
+def get_db(version):
     db = getattr(g, "_database", None)
     if db is None:
-        db = g._database = sqlite3.connect(app.config["DATABASE"])
+        db = g._database = sqlite3.connect(get_db_path(version))
     db.row_factory = make_dicts
     return db
 
@@ -105,7 +117,7 @@ def status():
     return "itsworkinganakin.gif"
 
 
-def sanity_checks():
+def sanity_checks(version):
     """
     Try and weed out malicious or malformed input
     """
@@ -114,6 +126,9 @@ def sanity_checks():
 
     if not request.is_json:
         abort(400, "Bro can you even")
+    
+    if version not in [1, 2]:
+        abort(400, "IDK homebro")
 
 
 def get_secret_hash(timestamp, addr, client_id, spins):
@@ -138,10 +153,10 @@ def get_utc_timestamp():
     return utc.timestamp()
 
 
-@app.route(f"/v{VERSION}/register", methods=["POST"])
-@limiter.limit("1/second")
-def register():
-    sanity_checks()
+@app.route(f"/v<int:version>/register", methods=["POST"])
+#@limiter.limit("1/second")
+def register(version):
+    sanity_checks(version)
     body = request.json
     if "spins" not in body or type(body["spins"]) != int:
         abort(400, "Learn to code")
@@ -155,7 +170,11 @@ def register():
     # The client then uses this has hash as a token when they go to do an update
     # The server saves no state until the client decides its on the leaderboard
     # and starts hitting the updateleaderboard endpoint instead of the update endpoint
-    addr = get_ip_from_request()
+    if version == 1:
+        addr = get_ip_from_request()
+    else:
+        addr = APP_REPLACEMENT_IP_STRING
+    
     timestamp = get_utc_timestamp()
     client_id = uuid.uuid4()
 
@@ -170,10 +189,10 @@ def register():
     return jsonify({"timestamp": str(timestamp), "id": client_id, "token": token.hex()})
 
 
-@app.route(f"/v{VERSION}/update", methods=["POST"])
-def update():
+@app.route(f"/v<int:version>/update", methods=["POST"])
+def update(version):
     # sanity checks
-    sanity_checks()
+    sanity_checks(version)
     body = request.json
 
     # quick and dirty schema validation
@@ -211,7 +230,10 @@ def update():
     client_id = uuid.UUID(client_id)
     token = bytearray.fromhex(token)
 
-    addr = get_ip_from_request()
+    if version == 1:
+        addr = get_ip_from_request()
+    elif version == 2:
+        addr = APP_REPLACEMENT_IP_STRING
 
     calculated_token = get_secret_hash(
         old_timestamp,
@@ -237,7 +259,7 @@ def update():
     if timestamp < earliest_checkin:
         abort(403, f"Too soon")
 
-    if timestamp > latest_checkin:
+    if timestamp > latest_checkin and version == 1:
         abort(403, f"Too late")
 
     # calculate what we would expect them to be at by based off of the time delta
@@ -257,6 +279,9 @@ def update():
             # they really went too fast, punish them
             abort(403, f"Cool your jets {expected_spins} / {spins}")
 
+    if version == 2 and spins - previous_spins > MAXIMUM_SPINS_BETWEEN_CHECKINS_APP:
+        spins = previous_spins + MAXIMUM_SPINS_BETWEEN_CHECKINS_APP
+
     # we allow them to go slower than expected, as long as they are in the
     # MAXIMUM_TIME_BETWEEN_UPDATES_S window
 
@@ -269,15 +294,15 @@ def update():
     )
 
 
-@app.route(f"/v{VERSION}/updateleaderboard", methods=["POST"])
-@limiter.limit("15/minute")
-def updateleaderboard():
-    response = update()
+@app.route(f"/v<int:version>/updateleaderboard", methods=["POST"])
+#@limiter.limit("15/minute")
+def updateleaderboard(version):
+    response = update(version)
 
     # at this point, we have authenticated the client's token.
     spins = int(request.json["spins"])
 
-    cur = get_db().cursor()
+    cur = get_db(version).cursor()
     # this was the minimum value when this table was generated
     # do 80% of this value to account for a client that has a stale copy of
     # the high score list (due to caching)
@@ -325,8 +350,8 @@ def updateleaderboard():
     return response
 
 
-def get_top_five():
-    db = sqlite3.connect(app.config["DATABASE"])
+def get_top_five(version):
+    db = sqlite3.connect(get_db_path(version))
     db.row_factory = make_dicts
     cur = db.cursor()
 
@@ -349,37 +374,39 @@ def get_top_five():
 
 if app.debug:
 
-    @app.route(f"/v{VERSION}/debugleaderboard", methods=["GET"])
-    def debugleaderboard():
-        return jsonify({"leaderboard": get_top_five()})
+    @app.route(f"/debugleaderboard/v<int:version>", methods=["GET"])
+    def debugleaderboard(version):
+        return jsonify({"leaderboard": get_top_five(version)})
 
 
 def write_leaderboard():
     # todo: we need to update the record instead of always inserting
     # and schedule cleanup task to run infrequently compared to the expected
     # time between intervals
-    top_5 = get_top_five()
-    with open(app.config["HIGHSCORE_FILE"], "w") as f:
-        f.write(json.dumps({"leaderboard": top_5}))
 
-    # update the lowest high score
-    db = sqlite3.connect(app.config["DATABASE"])
-    cur = db.cursor()
-    cur.execute("BEGIN TRANSACTION;")
+    for highscorefile, version in [(app.config["HIGHSCORE_FILE"], 1), (app.config["APP_HIGHSCORE_FILE"], 2)]:
+        top_5 = get_top_five(version)
+        with open(highscorefile, "w") as f:
+            f.write(json.dumps({"leaderboard": top_5}))
 
-    lowest_highscore = int(top_5[-1]["spins"])
+        # update the lowest high score
+        db = sqlite3.connect(get_db_path(version))
+        cur = db.cursor()
+        cur.execute("BEGIN TRANSACTION;")
 
-    try:
-        cur.execute("DELETE FROM minimum;")
-        cur.execute("INSERT INTO minimum (min) VALUES (?);", (lowest_highscore,))
-        cur.execute("COMMIT;")
-        db.commit()
-    except sqlite3.DatabaseError as e:
-        cur.execute("ROLLBACK;")
-        print("UH OH")
-        raise e
-    finally:
-        db.close()
+        lowest_highscore = int(top_5[-1]["spins"])
+
+        try:
+            cur.execute("DELETE FROM minimum;")
+            cur.execute("INSERT INTO minimum (min) VALUES (?);", (lowest_highscore,))
+            cur.execute("COMMIT;")
+            db.commit()
+        except sqlite3.DatabaseError as e:
+            cur.execute("ROLLBACK;")
+            print("UH OH")
+            raise e
+        finally:
+            db.close()
 
 
 if not app.debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":

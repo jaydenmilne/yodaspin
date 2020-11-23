@@ -1,0 +1,14 @@
+{
+    "name": "Yoda Spin",
+    "short_name": "Yoda Spin",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "black",
+    "description": "Show your devotion to Baby Yoda with this app",
+    "icons": [{
+        "src": "favicon.ico",
+        "sizes": "251x251",
+        "type": "image/png"
+    }],
+    "lang": "en-US"
+}
