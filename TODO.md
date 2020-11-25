@@ -17,7 +17,7 @@
 11. Fix safari leaderboard layout bug
 12. Make modals look better
 13. Clean up code / move between files
-14. Periodically update code
+14. **Periodically update code**
 
 ## Server
 
