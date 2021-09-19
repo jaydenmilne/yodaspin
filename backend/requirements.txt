@@ -2,3 +2,4 @@ flask
 Flask-Limiter
 Flask-Cors
 APScheduler
+gunicorn

@@ -1,0 +1,16 @@
+[Unit]
+Description=Backend for yodaspin.com
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+RestartSec=30
+Restart=always
+ExecStartPre=-/usr/bin/docker stop %n
+ExecStartPre=-/usr/bin/docker rm %n
+ExecStart=/usr/bin/docker run --rm --name %n --publish 5000:5000 --mount type=bind,source=/home/yodaspin/app,target=/opt/mnt yodaspin:latest
+ExecStop=/usr/bin/docker stop %n
+
+[Install]
+WantedBy=multi-user.target

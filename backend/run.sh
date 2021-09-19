@@ -1,0 +1,1 @@
+docker run --publish 5000:5000 --mount type=bind,source=/home/yodaspin/app,target=/opt/mnt yodaspin:latest
