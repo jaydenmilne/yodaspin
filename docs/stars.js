@@ -31,7 +31,8 @@ const makeStars = count => {
     return out;
 };
 
-let stars = makeStars(10000);
+let requestedStars = new URLSearchParams(window.location.search).get('maxStars');
+let stars = makeStars(requestedStars ? Number(requestedStars) : 10000 );
 
 const clear = () => {
     c.fillStyle = "black";

@@ -46,6 +46,7 @@ const API_URL = "https://api.yodaspin.com/v1";
 const REGISTER_ENDPOINT = `${API_URL}/register`;
 const UPDATE_ENDPOINT = `${API_URL}/update`;
 const UPDATELEADERBOARD_ENDPOINT = `${API_URL}/updateleaderboard`;
+const IGNORE_ERRORS = !!(new URLSearchParams(window.location.search).get('ignoreErrors'));
 
 let rotationAngle = 0;
 let rotations = 0;
@@ -187,13 +188,15 @@ async function refreshToken() {
             // uh oh
             faulted = true;
             let error = await response.json();
-
-            displayModal("Lost Server Connection", `You've lost your connection with the server (reason ${error["error"]} / ${response.status}). This can happen because your device went to sleep, lost connectivity, or the tab was in the background. You will not get on the leaderboard.`, "Darn.");
+            if (!IGNORE_ERRORS) {
+                displayModal("Lost Server Connection", `You've lost your connection with the server (reason ${error["error"]} / ${response.status}). This can happen because your device went to sleep, lost connectivity, or the tab was in the background. You will not get on the leaderboard.`, "Darn.");
+            }
         } else if (response.status < 500 && response.status >= 400 && response.status != 403) {
             faulted = true;
             let error = await response.json();
-
-            displayModal("Something went wrong!", `Something broke (${JSON.stringify(error)} / ${response.status}), and your high score will not update now, this is a bug. Sorry. \n Screenshot this and send it to Jayden`, "Learn to code dude");
+            if (!IGNORE_ERRORS) {
+                displayModal("Something went wrong!", `Something broke (${error.toString()} / ${response.text()} / ${response.status}), and your high score will not update now, this is a bug. Sorry. \n Screenshot this and send it to Jayden`, "Learn to code dude");
+            }
         }
         // If it isn't a 400 error, then we don't do anything drastic. The server
         // could just be down temporarily. As long as it comes back up within
@@ -408,6 +411,12 @@ function displayModal(title, message, btn_text) {
 }
 
 function namePromptModal() {
+    let providedName = new URLSearchParams(window.location.search).get('name');
+    if (providedName) {
+        name = providedName;
+        return;
+    }
+
     displayModal("GOOD NEWS", "You're on the leaderboard! Put in a name. \nThe leaderboard takes a while to update.", "LET'S GOOO");
     MODAL_INPUT.style.visibility = "inherit";
     modalMode = "input";
