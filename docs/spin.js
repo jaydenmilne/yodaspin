@@ -10,8 +10,9 @@ const DATES_OF_INTEREST = [
     new Date(Date.UTC(2020, 11, 11, 8, 1, 0, 0)),
     new Date(Date.UTC(2020, 11, 18, 8, 1, 0, 0))
     */
-   // the release date is "christmas 2021" for now
-   new Date(Date.UTC(2021, 12, 25, 8, 0, 0, 0))
+   // mando movie. final update probably :(
+   // I never even watched season 2 lol
+   new Date(Date.UTC(2026, 4, 22, 4, 0, 0, 0))
 ]
 
 const SONGS = [
